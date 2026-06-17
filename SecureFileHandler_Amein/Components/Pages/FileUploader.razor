@@ -77,7 +77,20 @@ else
         if (!isAdmin)
             _navigationManager.NavigateTo("/filedownloader");
         else
-            users = UserManager.Users.ToList();
+        {
+            var allUsers = UserManager.Users.ToList();
+            users = new List<ApplicationUser>();
+
+            foreach (var user in allUsers)
+            {
+                var roles = await UserManager.GetRolesAsync(user);
+
+                if (!roles.Contains("Admin"))
+                {
+                    users.Add(user);
+                }
+            }
+        }
 
 
         if (isAdmin)
