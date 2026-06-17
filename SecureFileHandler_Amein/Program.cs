@@ -39,7 +39,7 @@ builder.Services.AddDbContext<FileInfoDbContext>(options =>
 
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
     {
-        options.SignIn.RequireConfirmedAccount = false; // Den skal måske ændres
+        options.SignIn.RequireConfirmedAccount = true; // Den skal måske ændres
         options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
     })
     .AddRoles<IdentityRole>()

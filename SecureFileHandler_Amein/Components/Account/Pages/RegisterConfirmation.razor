@@ -39,6 +39,9 @@ else
     private string? Email { get; set; }
 
     [SupplyParameterFromQuery]
+    private string? UserName { get; set; }
+
+    [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
     protected override async Task OnInitializedAsync()
@@ -49,7 +52,7 @@ else
             return;
         }
 
-        var user = await UserManager.FindByEmailAsync(Email);
+        var user = await UserManager.FindByNameAsync(UserName);
         if (user is null)
         {
             HttpContext.Response.StatusCode = StatusCodes.Status404NotFound;

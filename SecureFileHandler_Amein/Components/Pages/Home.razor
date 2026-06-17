@@ -1,7 +1,26 @@
 ﻿@page "/"
+@inject NavigationManager _navigationManager
+@inject AuthenticationStateProvider _authenticationStateProvider
+@inject Codes.RoleHandler _RoleHandler
 
-<PageTitle>Home</PageTitle>
+<h1>Local File Transfer App</h1>
 
-<h1>Hello, world!</h1>
 
-Welcome to your new app.
+@code {
+    private bool isAdmin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await _RoleHandler.CreateUserRoles("amein", "Admin");
+
+        var authStateProvider = await _authenticationStateProvider.GetAuthenticationStateAsync();
+        isAdmin = authStateProvider.User.IsInRole("Admin");
+        if (authStateProvider.User.Identity.IsAuthenticated)
+        {
+            if (isAdmin)
+                _navigationManager.NavigateTo("/fileuploader");
+            else
+                _navigationManager.NavigateTo("/filedownloader");
+        }
+    }
+}

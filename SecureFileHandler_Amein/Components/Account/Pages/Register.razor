@@ -14,19 +14,23 @@
 @inject ILogger<Register> Logger
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
+@inject Codes.HashingHandler _hashingHandler
 
 <PageTitle>Register</PageTitle>
 
-<h1>Register</h1>
-
 <div class="row">
-    <div class="col-lg-6">
+    <div class="col-lg-4" style="width:80%;max-width:600px;margin: 0 auto;">
         <StatusMessage Message="@Message" />
         <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
             <DataAnnotationsValidator />
-            <h2>Create a new account.</h2>
+            <h2>Register.</h2>
             <hr />
             <ValidationSummary class="text-danger" role="alert" />
+            <div class="form-floating mb-3">
+                <InputText @bind-Value="Input.UserName" id="Input.UserName" class="form-control" autocomplete="username" aria-required="true" placeholder="" />
+                <label for="Input.UserName">User Name</label>
+                <ValidationMessage For="() => Input.UserName" class="text-danger" />
+            </div>
             <div class="form-floating mb-3">
                 <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
                 <label for="Input.Email">Email</label>
@@ -44,13 +48,6 @@
             </div>
             <button type="submit" class="w-100 btn btn-lg btn-primary">Register</button>
         </EditForm>
-    </div>
-    <div class="col-lg-4 col-lg-offset-2">
-        <section>
-            <h3>Use another service to register.</h3>
-            <hr />
-            <ExternalLoginPicker />
-        </section>
     </div>
 </div>
 
@@ -74,9 +71,15 @@
     {
         var user = CreateUser();
 
-        await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
+        byte[] salt = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
+        var emailNormalized = Input.Email.Trim().ToLowerInvariant();
+        var hashedEmail = _hashingHandler.PBKDF2Hashing_WithPepper(emailNormalized, salt);
+
+        await UserStore.SetUserNameAsync(user, Input.UserName, CancellationToken.None);
         var emailStore = GetEmailStore();
-        await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
+        await emailStore.SetEmailAsync(user, hashedEmail, CancellationToken.None);
+        user.UserName = Input.UserName;
+        user.Salt = salt;
         var result = await UserManager.CreateAsync(user, Input.Password);
 
         if (!result.Succeeded)
@@ -100,12 +103,12 @@
         {
             RedirectManager.RedirectTo(
                 "Account/RegisterConfirmation",
-                new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
+                new() { ["username"] = Input.UserName, ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
         }
         else
         {
             await SignInManager.SignInAsync(user, isPersistent: false);
-            RedirectManager.RedirectTo(ReturnUrl);
+            RedirectManager.RedirectTo("Account/Manage/EnableAuthenticator");
         }
     }
 
@@ -133,6 +136,11 @@
 
     private sealed class InputModel
     {
+        [Required]
+        [StringLength(10, ErrorMessage = "User name må max være 10 tegn.")]
+        [Display(Name = "User name")]
+        public string UserName { get; set; } = "";
+
         [Required]
         [EmailAddress]
         [Display(Name = "Email")]
