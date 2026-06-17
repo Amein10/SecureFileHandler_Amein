@@ -1,0 +1,35 @@
+﻿@page "/filevalidation/{UserName}/{FileName}/{IsValidString}"
+
+@rendermode InteractiveServer
+
+@inject NavigationManager _navigationManager
+
+<h3>File Validation Result</h3>
+
+<p>File: <strong>@FileName</strong></p>
+
+@if (IsValid)
+{
+    <p style="color:green;">No contamination detected ✅</p>
+}
+else
+{
+    <p style="color:red;">Contaminated ❌</p>
+}
+
+@code {
+    [Parameter] public string UserName { get; set; } = string.Empty;
+    [Parameter] public string FileName { get; set; } = string.Empty;
+    [Parameter] public string IsValidString { get; set; } = "false";
+
+    public bool IsValid => bool.TryParse(IsValidString, out var val) && val;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Trigger download automatically
+            _navigationManager.NavigateTo($"/download/{UserName}/{FileName}", forceLoad: true);
+        }
+    }
+}

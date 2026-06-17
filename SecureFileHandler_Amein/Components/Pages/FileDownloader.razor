@@ -1,0 +1,83 @@
+﻿@page "/filedownloader"
+@rendermode InteractiveServer
+
+@using System.Linq
+
+@inject IWebHostEnvironment _env
+@inject NavigationManager _navigationManager
+@inject Codes.HashingHandler _hashingHandler
+@inject Data.FileInfoDbContext _fileInfoDbContext
+@inject AuthenticationStateProvider _authenticationStateProvider
+
+<h3>Download Files</h3>
+<div style="width:400px;margin: 0 auto;text-align:left;">
+    @if (_isAdmin)
+    {
+        <div style="margin-top:10px;text-align:left;">
+            <a href="/fileuploader">Gå til File Uploader</a>
+        </div>
+    }
+
+    @if (files == null)
+    {
+        <p>Loading files...</p>
+    }
+    else if (!files.Any())
+    {
+        <p>No files available to download</p>
+    }
+    else
+    {
+        <ul style="width:400px;margin: 0 auto;list-style-type:none;">
+            @foreach (var file in files)
+            {
+                <li>
+                    @file
+                    <button @onclick="() => ValidateAndRedirect(file)">Validate & Download</button>
+                </li>
+            }
+        </ul>
+        <div style="font-weight:bold;color:red;">@message</div>
+    }
+</div>
+
+@code {
+    private string? message;
+    private List<string> files = new();
+    private string? _userName;
+    private bool _isAdmin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authStateProvider = await _authenticationStateProvider.GetAuthenticationStateAsync();
+        _userName = authStateProvider.User.Identity.Name;
+        _isAdmin = authStateProvider.User.IsInRole("Admin");
+
+        if (_userName != null)
+        {
+            var folder = Path.Combine(_env.ContentRootPath, "Files", _userName);
+            if (Directory.Exists(folder))
+                files = Directory.GetFiles(folder).Select(Path.GetFileName).ToList();
+        }
+    }
+
+    private async Task ValidateAndRedirect(string fileName)
+    {
+        var filePath = Path.Combine(_env.ContentRootPath, "Files", _userName, fileName);
+        if (!File.Exists(filePath))
+        {
+            _navigationManager.NavigateTo($"/filevalidation/{fileName}/false");
+            return;
+        }
+
+        var fileBytes = await File.ReadAllBytesAsync(filePath);
+        var fileHashedValue = _hashingHandler.HMACHashing(fileBytes);
+        var record = _fileInfoDbContext.RegisteredFiles.FirstOrDefault(a => a.FileName == fileName);
+
+        //bool isValid = fileHashedValue.SequenceEqual(record.HashAuth);
+        bool isValid = System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(fileHashedValue, record.HashAuth);
+
+        // Redirect to Razor component that displays validation result
+        _navigationManager.NavigateTo($"/filevalidation/{_userName}/{fileName}/{isValid}");
+    }
+}

@@ -1,0 +1,148 @@
+﻿@page "/fileuploader"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using SecureFileHandler_Amein.Data
+
+@inject HttpClient _httpClient
+@inject NavigationManager _navigationManager
+@inject AuthenticationStateProvider _authenticationStateProvider
+@inject Codes.RoleHandler _roleHandler
+@inject Codes.HashingHandler _hashingHandler
+@inject Data.FileInfoDbContext _fileInfoDbContext
+@inject IWebHostEnvironment _env
+@inject UserManager<ApplicationUser> UserManager
+
+@if (isAdmin)
+{
+    <div style="width:400px;margin: 0 auto;text-align:left;">
+        <h3>Upload fil</h3>
+        <hr />
+        <select @bind="selectedUserId" class="form-select" style="margin-bottom:5px;">
+            <option value="">-- Select a user --</option>
+            @foreach (var user in users)
+            {
+                if (user.UserName != "admin")
+                {
+                    <option value="@user.UserName">@user.UserName</option>
+                }
+            }
+        </select>
+        <InputFile OnChange="Upload" />
+        <div style="font-weight:bold;color:red;">@message</div>
+        <div style="margin-top:10px;text-align:left;">
+            @if (files == null)
+            {
+                <p>Loading files...</p>
+            }
+            else if (!files.Any())
+            {
+                <p>No files available to download</p>
+            }
+            else
+            {
+                <ul style="width:400px;margin: 0 auto;list-style-type:none;">
+                    @foreach (var file in files)
+                    {
+                        <li>
+                            @file
+                            <button @onclick="() => ValidateAndRedirect(file)">Validate & Download</button>
+                        </li>
+                    }
+                </ul>
+                <div style="font-weight:bold;color:red;">@message</div>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div>Hello, World!</div>
+}
+
+
+@code {
+    private string? message;
+    private bool isAdmin;
+    private List<ApplicationUser>? users;
+    private string? selectedUserId;
+    private List<string> files = new();
+    private AuthenticationState _authStateProvider;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _authStateProvider = await _authenticationStateProvider.GetAuthenticationStateAsync();
+        isAdmin = _authStateProvider.User.IsInRole("Admin");
+        if (!isAdmin)
+            _navigationManager.NavigateTo("/filedownloader");
+        else
+            users = UserManager.Users.ToList();
+
+
+        if (isAdmin)
+        {
+            var folder = Path.Combine(_env.ContentRootPath, "Files", _authStateProvider.User.Identity.Name);
+            if (Directory.Exists(folder))
+                files = Directory.GetFiles(folder).Select(Path.GetFileName).ToList();
+        }
+    }
+
+    private async Task Upload(InputFileChangeEventArgs e)
+    {
+        if (selectedUserId == null)
+        {
+            message = $"Angiv venligst hvilket bruger filen skal uploads til...";
+            return;
+        }
+
+        // 1. Uploader filens indhold til memory inden hashing.
+        byte[] file_content_in_memory;
+        using (var ms = new MemoryStream())
+        {
+            await e.File.OpenReadStream().CopyToAsync(ms);
+            file_content_in_memory = ms.ToArray();
+        }
+
+        // 2. Save to disk inside /Files/
+        var folderPath = Path.Combine(_env.ContentRootPath, "Files", selectedUserId);
+        if (!Directory.Exists(folderPath))
+            Directory.CreateDirectory(folderPath);
+        var filePath = Path.Combine(folderPath, e.File.Name);
+        await File.WriteAllBytesAsync(filePath, file_content_in_memory);
+
+        // 3. Hasher filens indhold med HMAC.
+        byte[] hmacValue = _hashingHandler.HMACHashing(file_content_in_memory);
+
+        // 4. Gemmer filens metadata i databasen.
+        var fileMetaData = new Data.RegisteredFile { FileName = e.File.Name, FileExtension = e.File.ContentType, HashAuth = hmacValue };
+        _fileInfoDbContext.RegisteredFiles.Where(f => f.FileName == e.File.Name).ToList().ForEach(f =>
+        {
+            _fileInfoDbContext.RegisteredFiles.Remove(f);
+        });
+        _fileInfoDbContext.RegisteredFiles.Add(fileMetaData);
+        _fileInfoDbContext.SaveChanges();
+
+        message = $"Upload succes!";
+    }
+
+    private async Task ValidateAndRedirect(string fileName)
+    {
+        var filePath = Path.Combine(_env.ContentRootPath, "Files", _authStateProvider.User.Identity.Name, fileName);
+        if (!File.Exists(filePath))
+        {
+            _navigationManager.NavigateTo($"/filevalidation/{fileName}/false");
+            return;
+        }
+
+        var fileBytes = await File.ReadAllBytesAsync(filePath);
+        var fileHashedValue = _hashingHandler.HMACHashing(fileBytes);
+        var record = _fileInfoDbContext.RegisteredFiles.FirstOrDefault(a => a.FileName == fileName);
+
+        //bool isValid = fileHashedValue.SequenceEqual(record.HashAuth);
+        bool isValid = System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(fileHashedValue, record.HashAuth);
+
+        // Redirect to Razor component that displays validation result
+        _navigationManager.NavigateTo($"/filevalidation/{_authStateProvider.User.Identity.Name}/{fileName}/{isValid}");
+    }
+}
