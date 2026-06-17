@@ -1,10 +1,16 @@
+using FileTransferApp_Afsender_Amein.Codes;
 using FileTransferApp_Afsender_Amein.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.Services.AddTransient<EncryptionHandler>();
+builder.Services.AddDataProtection();
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddHttpClient();
 
 var app = builder.Build();
 

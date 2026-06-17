@@ -1,7 +1,111 @@
 ﻿@page "/"
+@rendermode InteractiveServer
 
-<PageTitle>Home</PageTitle>
+@using Microsoft.AspNetCore.Components.Forms
+@using FileTransferApp_Afsender_Amein.Codes
 
-<h1>Hello, world!</h1>
+@inject HttpClient _httpClient
+@inject NavigationManager _navigationManager
+@inject EncryptionHandler _encryptionHandler
 
-Welcome to your new app.
+<div style="width:300px;margin: 0 auto;text-align:left;">
+    <h3>Fil overførsel app</h3>
+    <hr />
+
+    <InputRadioGroup @bind-Value="selectedOption">
+        <label>
+            <InputRadio Value="Option1" />
+            Encrypt with RSA public key
+        </label>
+        <label>
+            <InputRadio Value="Option2" />
+            Encrypt med RSA/AES i GCM mode
+        </label>
+    </InputRadioGroup>
+
+    <hr />
+    @if (selectedOption == Option1)
+    {
+        <InputFile OnChange="UploadSelectedFile" />
+    }
+    else if (selectedOption == Option2)
+    {
+        <InputFile OnChange="Encrypt_with_AES_GCM_And_Upload" />
+    }
+    <p>@message</p>
+</div>
+
+
+@code {
+    private string? message;
+    private string selectedOption = "Option1";
+    private string Option1 = "Option1";
+    private string Option2 = "Option2";
+
+    private async Task<string> UploadSelectedFile(InputFileChangeEventArgs e)
+    {
+        // 1. Hent offenlig nøgle fra modtager app (fordi modtageren skal kunne dekryptere filen).
+        var response = await _httpClient.PostAsync("https://localhost:7164/api/handshake", null);
+        byte[] rsa_public_key = Convert.FromBase64String(await response.Content.ReadAsStringAsync());
+
+        // 2. IndLæs valgte fils indhold i memory og krypteres med det samme så den ikke kan opsnappes fra harddisken.
+        byte[] file_content_in_memory = await _encryptionHandler.Load_File_Content_To_Memory(e.File);
+
+        // 3. Krypter filen .
+        byte[] ciphertext = _encryptionHandler.Encrypt(rsa_public_key, file_content_in_memory);
+
+        // 4. Opret en DTO objekt med det krypteret fils indhold samt alle nødvendige aes_gcm data modtager app bruger til interity check samt dekryptering (Skal matches med det DTO objekt i modtager app).
+        var payload = new
+        {
+            FileName = e.File.Name,
+            FileExtensions = e.File.ContentType,
+            Ciphertext = ciphertext
+        };
+        string serializedLoginInfo = Newtonsoft.Json.JsonConvert.SerializeObject(payload);
+        StringContent sc = new StringContent(serializedLoginInfo, System.Text.Encoding.UTF8, "application/json");
+
+        // 5. Send DTO objekt til modtager app og monitorer svar beskeden.
+        var response2 = await _httpClient.PostAsync("https://localhost:7164/api/upload_encrypted_file", sc);
+        message = response2.IsSuccessStatusCode ? "Upload successful!" : "Upload failed!";
+
+        return message;
+    }
+
+    private async Task<string> Encrypt_with_AES_GCM_And_Upload(InputFileChangeEventArgs e)
+    {
+        // 1. Hent offenlig nøgle fra modtager app (fordi modtageren skal kunne dekryptere filen).
+        var response = await _httpClient.PostAsync("https://localhost:7164/api/handshake", null);
+        byte[] rsa_public_key = Convert.FromBase64String(await response.Content.ReadAsStringAsync());
+
+        // 2. IndLæs valgte fils indhold i memory og krypteres med det samme så den ikke kan opsnappes fra harddisken.
+        byte[] file_content_in_memory = await _encryptionHandler.Load_File_Content_To_Memory(e.File);
+
+        byte[] ciphertext = _encryptionHandler.Encrypt_File_Content_With_AES_GCM_Mode(file_content_in_memory);
+        byte[] nonce = _encryptionHandler.Nonce;
+        byte[] tag = _encryptionHandler.Tag;
+        byte[] encrypted_AES_Key = _encryptionHandler.Encrypt_AES_key_with_RSA(rsa_public_key);
+
+        ciphertext = new byte[32];
+
+        var payload = new
+        {
+            FileName = e.File.Name,
+            FileExtensions = e.File.ContentType,
+            Encrypted_AES_Key = encrypted_AES_Key,
+            Nonce = nonce,
+            Tag = tag,
+            Ciphertext = ciphertext
+        };
+
+        string serializedLoginInfo = Newtonsoft.Json.JsonConvert.SerializeObject(payload);
+        StringContent sc = new StringContent(serializedLoginInfo, System.Text.Encoding.UTF8, "application/json");
+
+        var response2 = await _httpClient.PostAsync("https://localhost:7164/api/upload_aesGcm_encrypted_file", sc);
+        message = response2.IsSuccessStatusCode ? "Upload successful! Resiver return message: No contamination detected ✅" : "Upload failed. Resiver return message: Contaminated ❌";
+
+        return message;
+    }
+
+
+    
+}
