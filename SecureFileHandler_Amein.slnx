@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="FileTransferApp_Afsender_Amein/FileTransferApp_Afsender_Amein.csproj" />
+  <Project Path="SecureFileHandler_Amein/SecureFileHandler_Amein.csproj" />
+</Solution>
