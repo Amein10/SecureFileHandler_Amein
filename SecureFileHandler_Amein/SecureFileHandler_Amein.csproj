@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Files\admin\" />
     <Folder Include="Keys\" />
     <Folder Include="Files\" />
   </ItemGroup>

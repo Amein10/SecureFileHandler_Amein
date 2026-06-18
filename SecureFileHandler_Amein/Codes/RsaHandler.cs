@@ -41,7 +41,7 @@ namespace SecureFileHandler_Amein.Codes
             return rsa.Decrypt(ciphertext, RSAEncryptionPadding.OaepSHA256);
         }
 
-        public byte[] Decrypt_AES_In_GCM_Mode(byte[] encrypted_AES_Key, byte[] nonce, byte[] tag, byte[] encryptedData)
+        public byte[] Decrypt_AES_In_GCM_Mode(byte[] encrypted_AES_Key, byte[   ] nonce, byte[] tag, byte[] encryptedData)
         {
             // Decrypt AES key using RSA
             byte[] decrypted_aes_key;
