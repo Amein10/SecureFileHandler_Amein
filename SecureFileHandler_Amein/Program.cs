@@ -51,6 +51,20 @@ builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSe
 
 builder.Services.AddHttpClient();
 
+builder.Configuration.GetSection("Kestrel:Endpoints:Https:Url").Value =
+    "https://localhost:7000";
+
+builder.Configuration.GetSection("Kestrel:Endpoints:Https:Certificate:Path").Value =
+    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".aspnet", "https", "Amein.pem");
+
+builder.Configuration.GetSection("Kestrel:Endpoints:Https:Certificate:KeyPath").Value =
+    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".aspnet", "https", "Amein.key");
+
+// builder.Configuration.GetSection("Kestrel:Endpoints:Https:Certificate:Path").Value = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aspnet", "https", "Amein.pem");
+// builder.Configuration.GetSection("Kestrel:Endpoints:Https:Certificate:KeyPath").Value = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aspnet", "https", "Amein.key");
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

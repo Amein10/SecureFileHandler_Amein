@@ -95,7 +95,7 @@ else
 
         if (isAdmin)
         {
-            var folder = Path.Combine(_env.ContentRootPath, "Files", _authStateProvider.User.Identity.Name);
+            var folder = Path.Combine(_env.ContentRootPath, "Files", "admin");
             if (Directory.Exists(folder))
                 files = Directory.GetFiles(folder).Select(Path.GetFileName).ToList();
         }
@@ -141,10 +141,10 @@ else
 
     private async Task ValidateAndRedirect(string fileName)
     {
-        var filePath = Path.Combine(_env.ContentRootPath, "Files", _authStateProvider.User.Identity.Name, fileName);
+        var filePath = Path.Combine(_env.ContentRootPath, "Files", "admin", fileName);
         if (!File.Exists(filePath))
         {
-            _navigationManager.NavigateTo($"/filevalidation/{fileName}/false");
+            _navigationManager.NavigateTo($"/filevalidation/admin/{fileName}/false");
             return;
         }
 
@@ -152,10 +152,8 @@ else
         var fileHashedValue = _hashingHandler.HMACHashing(fileBytes);
         var record = _fileInfoDbContext.RegisteredFiles.FirstOrDefault(a => a.FileName == fileName);
 
-        //bool isValid = fileHashedValue.SequenceEqual(record.HashAuth);
         bool isValid = System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(fileHashedValue, record.HashAuth);
 
-        // Redirect to Razor component that displays validation result
-        _navigationManager.NavigateTo($"/filevalidation/{_authStateProvider.User.Identity.Name}/{fileName}/{isValid}");
+        _navigationManager.NavigateTo($"/filevalidation/admin/{fileName}/{isValid}");
     }
 }
